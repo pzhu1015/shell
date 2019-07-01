@@ -1,0 +1,39 @@
+#!/bin/bash
+################################################################################
+#
+# Author: pengzhihu1015@163.com
+# Created : 2019/07/01
+# Description: auto gdb process and break point from "b.list"
+# Tip:
+#
+################################################################################
+user=`whoami`
+cd $(dirname "$0")
+proc_name=${1}
+work_dir=`echo $(cd "$(dirname "$0")"; pwd)`
+proc_path="${work_dir}/${proc_name}"
+proc_id=""
+found=false
+while ! ${found}
+do
+	process=`pgrep -u ${user} ${proc_name} | awk '{print $1}'`
+	for q in ${process}
+	do
+		rs=`ls -l /proc/${q}/exe 2>/dev/null`
+		if [ "${rs}" != "" ]
+		then
+			tmp_path=`ls -l /proc/${q}/exe | awk '{print $11}'`
+			if [ "${tmp_path}" == "${proc_path}" ]
+			then
+				proc_id=${q}
+				found=true
+				break
+			fi
+		fi
+	done
+	if [ !${found} ]
+	then
+		sleep 0.1
+	fi
+done
+gdb -p ${proc_id} -x b.list
