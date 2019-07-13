@@ -1,0 +1,15 @@
+#java install user for root
+declare -A JavaIPList
+JavaIPList=(
+[192.168.1.100]="root"
+)
+
+#bashrc
+BASHRC=/etc/profile
+
+#set java source tar file
+JAVA_SOURCE=jdk-8u11-linux-x64.tar.gz
+
+#set java install directory
+JAVA_BASE=/usr/lib/jvm
+

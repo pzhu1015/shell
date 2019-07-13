@@ -9,86 +9,70 @@
 ##############################################################
 #!/bin/bash
 WORKDIR=$(cd $(dirname $0); pwd)
-#bashrc
-BASHRC=/etc/profile
-#set java source tar file
-JAVA_SOURCE=jdk-8u11-linux-x64.tar.gz
+USERNAME=`whoami`
 
-#set java install directory
-JAVA_BASE=/usr/lib/jvm
-
-info() {
-    printf "\r`date "+%F %T"` [ \033[00;32mINFO\033[0m ]%s\n" "$1"
-}
-
-warn() {
-    printf "\r`date "+%F %T"` [\033[0;33mWARN\033[0m]%s\n" "$1"
-}
-
-error() {
-    printf "\r`date "+%F %T"` [ \033[0;31mERROR\033[0m ]%s\n" "$1"
-}
-
-usage() {
-    echo "Usage: ${0##*/} {info|warn|error} MSG"
-}
-
-log() {
-    if [ $# -lt 2 ]; then
-        log error "Not enough arguments [$#] to log."
-    fi
-
-    __LOG_PRIO="$1"
-    shift
-    __LOG_MSG="$*"
-
-    case "${__LOG_PRIO}" in
-        error) __LOG_PRIO="ERROR";;
-        warn) __LOG_PRIO="WARNING";;
-        info) __LOG_PRIO="INFO";;
-    esac
-
-    if [ "${__LOG_PRIO}" = "INFO" ]; then
-        info " $__LOG_MSG"
-    elif [ "${__LOG_PRIO}" = "WARN" ]; then
-        warn " $__LOG_MSG"
-    elif [ "${__LOG_PRIO}" = "ERROR" ]; then
-        error " $__LOG_MSG"
-    else
-       usage
-    fi
-}
-
-if [ ! -f ${WORKDIR}/$JAVA_SOURCE ]
+LOG=${WORKDIR}/log.sh
+if [ ! -f ${LOG} ]
 then
-	log error "Source File [${WORKDIR}/$JAVA_SOURCE] does not exist"
-	exit
+    printf "\r`date "+%F %T"` [ \033[0;31mERROR\033[0m ] [${LOG} does not exist]\n"
+	exit 127
+else
+	source ${LOG}
+	if [ $? -ne "0" ]
+	then
+		printf "\r`date "+%F %T"` [ \033[0;31mERROR\033[0m ] [${LOG} execute failed]\n"
+		exit
+	fi
 fi
 
+#include configuration for ip address and password
+CONFIG=${WORKDIR}/config
 
-mkdir -p $JAVA_BASE
-JAVA_DIR_NAME=`tar -zxvf ${WORKDIR}/$JAVA_SOURCE -C $JAVA_BASE | tail -n1 | awk -F "/" '{print $1}'`
-
-JAVA_HOME=$JAVA_BASE/$JAVA_DIR_NAME
-log info [JAVA_HOME=$JAVA_HOME]
- 
-JAVA_BIN=$JAVA_HOME/bin
-log info [JAVA_BIN=$JAVA_BIN]
- 
-PATH=$PATH:$JAVA_BIN
-log info [PATH=$PATH]
- 
-CLASSPATH=$JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar
-log info [CLASSPATH=$CLASSPATH]
- 
-#write java environment variables to .bashrc  if not exist
-grep -q "export JAVA_HOME" $BASHRC
-if [ $? -ne 0 ]; then
-    log info "Java environment variables not exist,starting define it"
-	echo "export JAVA_HOME="$JAVA_HOME >> $BASHRC
-	echo "export JAVA_BIN="$JAVA_BIN >> $BASHRC
-	echo "export PATH=\$PATH:\$JAVA_BIN" >> $BASHRC
-	echo "export CLASSPATH="\$JAVA_HOME/lib/dt.jar:\$JAVA_HOME/lib/tools.jar >> $BASHRC
+if [ ! -f ${CONFIG} ]
+then
+	log error "[${CONFIG}] does not exist"
+	exit 127
+else
+	source ${CONFIG}
+	if [ $? -ne "0" ]
+	then
+		log error "[${CONFIG}] execute failed"
+		exit
+	fi
 fi
-log info "Config Java Environment Variables Success"
-source $BASHRC
+
+#2. set no password
+NOPWD=${WORKDIR}/set_ssh_nopwd.sh 
+if [ ! -f ${NOPWD} ]
+then
+	log error "[${NOPWD}] does not exists"
+	exit 127
+else
+	source ${NOPWD}
+	if [ $? -ne 0 ]
+	then
+		log error "[${NOPWD}] execute failed"
+		exit
+	fi
+	log info "Set ssh no password successfully."
+fi
+
+set_java()
+{
+	local IP=$1
+    scp ${WORKDIR}/set_java.sh ${WORKDIR}/config ${WORKDIR}/${JAVA_SOURCE} ${USERNAME}@${IP}:$HOME
+	ssh ${USERNAME}@${IP} source $HOME/set_java.sh "${IP}"
+}
+
+for IP in ${!JavaIPList[@]}; do
+	log info "Start to install java for [${IP}]..."
+	set_java ${IP} &
+done
+wait
+
+if [ $? -ne 0 ]
+then
+	log error "Install java failed."
+else
+	log info "Install java successfully."
+fi

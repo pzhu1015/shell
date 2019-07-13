@@ -4,64 +4,10 @@
 # Author: pengzhihu1015@163.com
 # Created : 2019/06/30
 # Description: set ssh login for no password
-# Tip:
-# firt machine instal expect
-# Ubuntu: apt-get instal expect
-# Centos: yum instal expect
-# modify [IPList]
 #
 ################################################################################
-declare -A IPList
+WORKDIR=$(cd $(dirname $0); pwd)
 USER_NAME=`whoami`
-IPList=(
-[192.168.1.100]="12345"
-[192.168.1.101]="12345"
-[192.168.1.102]="12345"
-[192.168.1.103]="12345"
-)
-
-info() {
-    printf "\r`date "+%F %T"` [ \033[00;32mINFO\033[0m ]%s\n" "$1"
-}
-
-warn() {
-    printf "\r`date "+%F %T"` [\033[0;33mWARN\033[0m]%s\n" "$1"
-}
-
-error() {
-    printf "\r`date "+%F %T"` [ \033[0;31mERROR\033[0m ]%s\n" "$1"
-}
-
-usage() {
-    echo "Usage: ${0##*/} {info|warn|error} MSG"
-}
-
-log() {
-    if [ $# -lt 2 ]; then
-        log error "Not enough arguments [$#] to log."
-    fi
-
-    __LOG_PRIO="$1"
-    shift
-    __LOG_MSG="$*"
-
-    case "${__LOG_PRIO}" in
-        error) __LOG_PRIO="ERROR";;
-        warn) __LOG_PRIO="WARNING";;
-        info) __LOG_PRIO="INFO";;
-    esac
-
-    if [ "${__LOG_PRIO}" = "INFO" ]; then
-        info " $__LOG_MSG"
-    elif [ "${__LOG_PRIO}" = "WARN" ]; then
-        warn " $__LOG_MSG"
-    elif [ "${__LOG_PRIO}" = "ERROR" ]; then
-        error " $__LOG_MSG"
-    else
-       usage
-    fi
-}
-
 # for ssh
 ssh_keygen="/usr/bin/ssh-keygen"
 ssh_key_type="rsa"
@@ -86,12 +32,14 @@ check_expect() {
         log warn "No expect command and try to install, please wait..."
         install_expect
         if ! command_exists expect; then
-            log err "Installation failed, please install the expect command manually."
+            log error "Installation failed, please install the expect command manually."
             exit 1
         else
             log info "Installation successed."
         fi
-    fi
+	else
+       log info "[expect] for sepcify password exist"
+	fi
 }
 
 get_cipher() {
@@ -126,14 +74,16 @@ generate_ssh_key() {
        if [ $? -eq 0 ]; then
            log info "Generated ssh key successfully."
        else
-           log err "Generated ssh key failed."
+           log error "Generated ssh key failed."
+		   exit 1
        fi
    else
        echo "y" | ${ssh_keygen} -t ${ssh_key_type} -P "${ssh_pwd}" -f ${ssh_pri_key} &> /dev/null
        if [ $? -eq 0 ]; then
            log info "Generated ssh key successfully."
        else
-           log err "Generated ssh key failed."
+           log error "Generated ssh key failed."
+		   exit 1
        fi
    fi
 }
@@ -170,16 +120,20 @@ copy_pub_key() {
         exit [lindex \$retVal 3]"
 EOF
        if [ $? -eq 0 ]; then
-           log info "Copy the ssh pub key to $IP successfully."
+           log info "Copy the ssh pub key to [$IP] successfully."
        else
-           log err "Copy the ssh pub key to $IP failed."
+           log error "Copy the ssh pub key to [$IP] failed."
+		   exit 1
        fi
 }
 
 
 # main
+log info "Start to check install expect command..."
 check_expect
+log info "Start to generate ssh key..."
 generate_ssh_key
 for ip in ${!IPList[@]}; do
+	log info "Start to Copy ssh pub key to [$ip]..."
     copy_pub_key $ip
 done
